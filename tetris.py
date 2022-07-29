@@ -1,13 +1,14 @@
 import pygame
 import random
+import os
 #TODO PORT CUSTOMIZATIONS FROM OLD TETRIS
 pygame.font.init()
 pygame.mixer.init()
 music = pygame.mixer.music.load("tetris.mp3")
 pygame.mixer.music.play(-1)
 lsr = pygame.mixer.Sound("laser.wav")
-s_width = 800
-s_height = 700
+s_width = 1280
+s_height = 720
 play_width = 300  # meaning 300 // 10 = 30 width per block
 play_height = 600  # meaning 600 // 20 = 20 height per block
 block_size = 30
@@ -303,6 +304,10 @@ def update_score(nscore):
 
 
 def max_score():
+    if not os.path.isfile("scores.txt"):
+        with open("scores.txt","w+") as f:
+            f.write("0")
+        return 0
     with open('scores.txt', 'r') as f:
         lines = f.readlines()
         score = lines[0].strip()
@@ -333,7 +338,7 @@ def draw_window(surface, grid, score=0, last_score = 0):
     sx = top_left_x - 200
     sy = top_left_y + 200
 
-    surface.blit(label, (sx + -150, sy + 160))
+    surface.blit(label, (sx + -50, sy + 160))
 
     for i in range(len(grid)):
         for j in range(len(grid[i])):
@@ -433,6 +438,7 @@ def main(win):
             if event.type == pygame.QUIT:
                 run = False
                 pygame.display.quit()
+                pygame.quit()
                 # step s) is here
 
             if event.type == pygame.KEYDOWN:
@@ -519,7 +525,7 @@ def main_menu(win):
 
 
 # 8. Edit the call to main below to instead call main_menu() with win as the argument
-win = pygame.display.set_mode((s_width, s_height))
+win = pygame.display.set_mode((s_width, s_height),pygame.FULLSCREEN)
 pygame.display.set_caption('Tetris')
 main_menu(win)  # start game
 
