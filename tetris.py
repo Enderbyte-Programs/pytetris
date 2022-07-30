@@ -2,6 +2,7 @@ import pygame
 import random
 import os
 import sys
+import datetime
 #TODO PORT CUSTOMIZATIONS FROM OLD TETRIS
 pygame.font.init()
 pygame.mixer.init()
@@ -242,6 +243,23 @@ def draw_next_shape(shape, surface):
 
     surface.blit(label, (sx + 10, sy - 30))
 
+def draw_hold(shape, surface):
+    font = pygame.font.SysFont('Times New Roman', 30)
+    label = font.render('Hold', 1, (255,255,255))
+
+    sx = 200
+    sy = 200
+    if shape is not None:
+        format = shape.shape[shape.rotation % len(shape.shape)]
+
+        for i, line in enumerate(format):
+            row = list(line)
+            for j, column in enumerate(row):
+                if column == '0':
+                    pygame.draw.rect(surface, shape.color, (sx + j*block_size, sy + i*block_size, block_size, block_size), 0)
+
+    surface.blit(label, (sx + 10, sy - 30))
+
 
 def update_score(nscore):
     score = max_score()
@@ -283,12 +301,16 @@ def draw_window(surface, grid, score=0, last_score = 0):
 
     surface.blit(label, (sx + 20, sy + 160))
     # last score
-    label = font.render('High Score: ' + last_score, 1, (255,255,255))
+    label = font.render('High Score: ' + str(last_score), 1, (255,255,255))
 
     sx = top_left_x - 200
     sy = top_left_y + 200
 
     surface.blit(label, (sx + -80, sy + 160))
+    draw_text(win,parsedtime,48,(255,255,255),0,0)
+    draw_text(win,"Level: " + str(level),30,(255,255,255),0,50)
+    draw_text(win,"Lines Left: " + str(requirement-lines_cleared),30,(255,255,255),0,100)
+    draw_text(win, "Lines Cleared: " + str(lc),30,(255,255,255),0,150)
 
     for i in range(len(grid)):
         for j in range(len(grid[i])):
@@ -298,13 +320,22 @@ def draw_window(surface, grid, score=0, last_score = 0):
 
     draw_grid(surface, grid)
     #pygame.display.update()
-
+level = 1
 def main(win):
     global grid
+    global level
+    global requirement
+    global lines_cleared
+    global lc
+    global bp
+    global parsedtime
+    global holdpiece
+    holdpiece = None
+    lc = 0
+    bp = 0
     paused = False
     # put a) here
     last_score = max_score()
-
     locked_positions = {}  # (x,y):(255,0,0)
     grid = create_grid(locked_positions)
 
@@ -315,10 +346,14 @@ def main(win):
     clock = pygame.time.Clock()
     fall_time = 0
     # put steps b), c), and d) here
-    fall_speed = 0.5
+    fall_speed = 0.5 - (level * 0.02)
     level_time = 0
     score = 0
-
+    requirement = 4 + ((level - 1) * 4)
+    lines_cleared = 0
+    _linetick = 0
+    _ctick = 0
+    _gamestart = datetime.datetime.now()
     while run:
 
         # put steps e) - r) here
@@ -326,6 +361,8 @@ def main(win):
         fall_time += clock.get_rawtime()
         level_time += clock.get_rawtime()
         clock.tick()
+        _parsedtime = round((datetime.datetime.now() - _gamestart).total_seconds())
+        parsedtime = datetime.datetime(2022,1,1,_parsedtime // 3600,(_parsedtime % 3600) // 60, (_parsedtime % 3600) % 60).strftime("%H:%M:%S")
         if (level_time / 1000) < 5:
             level_time = 0
             if level_time > 0.12:
@@ -337,6 +374,9 @@ def main(win):
                 current_piece.y -= 1
                 change_piece = True
 
+        if holdpiece is not None:
+            holdpiece.x = current_piece.x
+            holdpiece.y = current_piece.y
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
@@ -346,20 +386,17 @@ def main(win):
                 # step s) is here
 
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
+                if event.key == pygame.K_LEFT and not paused:
                     current_piece.x -= 1
                     if not valid_space(current_piece, grid):
                         current_piece.x += 1
 
-                elif event.key == pygame.K_RIGHT:
+                elif event.key == pygame.K_RIGHT and not paused:
                     current_piece.x += 1
                     if not valid_space(current_piece, grid):
                         current_piece.x -= 1
 
-                elif event.key == pygame.K_DOWN:
-                    fall_speed = 0
-
-                elif event.key == pygame.K_UP:
+                elif event.key == pygame.K_UP and not paused:
                     # rotate shape
                     current_piece.rotation = current_piece.rotation + 1 % len(current_piece.shape)
                     if not valid_space(current_piece, grid):
@@ -374,6 +411,24 @@ def main(win):
                 elif event.key == pygame.K_ESCAPE and paused:
                     paused = False
                     fall_speed = ofs
+                elif event.key == pygame.K_SLASH and holdpiece is None and not paused:
+                    holdpiece = current_piece
+                    current_piece = next_piece
+                    next_piece = get_shape()
+                elif event.key == pygame.K_SLASH and holdpiece is not None and not paused:
+                    _hp = holdpiece
+                    holdpiece = current_piece
+                    current_piece = _hp
+        ki = pygame.key.get_pressed()
+
+        if ki[pygame.K_DOWN]:
+
+            _linetick += 1
+            if _linetick > 50:
+                fall_speed = 0
+                _linetick = -50 #Debounce
+        else:
+            _linetick = 0
         # put steps t) - F) here
         shape_pos = convert_shape_format(current_piece)
         for i in range(len(shape_pos)):
@@ -381,10 +436,15 @@ def main(win):
             if y > -1:
                 grid[y][x] = current_piece.color
         if change_piece:
+            bp += 1
             for pos in shape_pos:
                 p = (pos[0],pos[1])
                 locked_positions[p] = current_piece.color
-            fall_speed = 0.5
+
+            fall_speed = 0.5 - (level * 0.02)
+            if fall_speed < 0:
+                fall_speed = 0
+            requirement = 4 + ((level - 1) * 4)
             current_piece = next_piece
             next_piece = get_shape()
             change_piece = False
@@ -397,11 +457,17 @@ def main(win):
                 score += 50
             elif pscore == 4:
                 score += 100
+            lines_cleared += pscore
+            lc += pscore
+            if lines_cleared > (requirement - 1):
+                level += 1
+                lines_cleared = 0
 
         # follow step G) here
         draw_window(win,grid,score,last_score)
         # put steps H) - O) here
         draw_next_shape(next_piece,win)
+        draw_hold(holdpiece,win)
         pygame.display.update()
         #score += (10 * clear_rows(grid, locked_positions))
 
@@ -410,6 +476,8 @@ def main(win):
             pygame.display.update()
             pygame.time.delay(1500)
             run = False
+            level = 0
+            lines_cleared = 0
             update_score(score)
 
 
@@ -436,5 +504,6 @@ def main_menu(win):
 win = pygame.display.set_mode((s_width, s_height),pygame.FULLSCREEN)
 pygame.display.set_caption('Tetris')
 pygame.mouse.set_visible(False)
+
 pygame.display.set_icon(pygame.image.load("logo.png"))
 main_menu(win)  # start game
