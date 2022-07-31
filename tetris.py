@@ -132,6 +132,57 @@ class Piece(object):
         self.color = shape_colors[shapes.index(shape)]
         self.rotation = 0
 
+    class Button():
+        def __init__(self, color, x, y, width, height, text=''):
+            self.color = color
+            self.ogcol = color
+            self.x = x
+            self.y = y
+            self.width = width
+            self.height = height
+            self.text = text
+            self.juston = False
+            self.on = False
+
+        def draw(self, win, outline=None):
+            # Call this method to draw the button on the screen
+            if outline:
+                pygame.draw.rect(win, outline, (self.x - 2, self.y - 2, self.width + 4, self.height + 4), 0)
+
+            pygame.draw.rect(win, self.color, (self.x, self.y, self.width, self.height), 0)
+
+            if self.text != '':
+                font = pygame.font.SysFont('Consolas', 24)
+                text = font.render(self.text, 1, (0, 0, 0))
+                win.blit(text, (
+                self.x + (self.width / 2 - text.get_width() / 2), self.y + (self.height / 2 - text.get_height() / 2)))
+
+        def isOver(self, pos):
+
+            # Pos is the mouse position or a tuple of (x,y) coordinates
+            if pos[0] > self.x and pos[0] < self.x + self.width:
+                if pos[1] > self.y and pos[1] < self.y + self.height:
+                    pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_HAND))
+                    self.color = (128, 128, 128)
+                    self.on = True
+
+                else:
+                    self.color = self.ogcol
+                    self.on = False
+
+            else:
+                self.color = self.ogcol
+                self.on = False
+
+            if not self.on and self.juston:
+                pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
+            self.juston = self.on
+
+            for event in pygame.event.get():
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if pos[0] > self.x and pos[0] < self.x + self.width:
+                        if pos[1] > self.y and pos[1] < self.y + self.height:
+                            return True
 
 def create_grid(locked_positions={}):
     grid = [[(0,0,0) for _ in range(10)] for _ in range(20)]
@@ -244,14 +295,15 @@ def draw_next_shape(shape, surface):
     surface.blit(label, (sx + 10, sy - 30))
 
 def draw_hold(shape, surface):
-    font = pygame.font.SysFont('Times New Roman', 30)
+    font = pygame.font.SysFont('Consolas', 30)
     label = font.render('Hold', 1, (255,255,255))
 
     sx = 200
     sy = 200
     if shape is not None:
         format = shape.shape[shape.rotation % len(shape.shape)]
-
+        shape.x = 5
+        shape.y = 0
         for i, line in enumerate(format):
             row = list(line)
             for j, column in enumerate(row):
@@ -284,6 +336,8 @@ def max_score():
 
 
 def draw_window(surface, grid, score=0, last_score = 0):
+    global _wctick
+    global ttick
     surface.fill((0, 0, 0))
 
     pygame.font.init()
@@ -311,6 +365,7 @@ def draw_window(surface, grid, score=0, last_score = 0):
     draw_text(win,"Level: " + str(level),30,(255,255,255),0,50)
     draw_text(win,"Lines Left: " + str(requirement-lines_cleared),30,(255,255,255),0,100)
     draw_text(win, "Lines Cleared: " + str(lc),30,(255,255,255),0,150)
+    draw_text(win,"Blocks Placed: "+str(bp),30,(255,255,255),0,200)
 
     for i in range(len(grid)):
         for j in range(len(grid[i])):
@@ -319,6 +374,20 @@ def draw_window(surface, grid, score=0, last_score = 0):
     pygame.draw.rect(surface, (255, 0, 0), (top_left_x, top_left_y, play_width, play_height), 5)
 
     draw_grid(surface, grid)
+    if paused:
+        draw_text_middle(win, "You are Paused", 60, (255, 255, 255))
+    if _wctick > 0:
+        if _wctick > 100:
+            _wctick = 0
+        else:
+            _wctick += 1
+            draw_text_middle(win,"Well Cleared",60,(255,255,255))
+    if ttick > 0:
+        if ttick > 100:
+            ttick = 0
+        else:
+            ttick += 1
+            draw_text_middle(win,"TETRIS",60,(255,255,255))
     #pygame.display.update()
 level = 1
 def main(win):
@@ -330,6 +399,9 @@ def main(win):
     global bp
     global parsedtime
     global holdpiece
+    global paused
+    global _wctick
+    global ttick
     holdpiece = None
     lc = 0
     bp = 0
@@ -354,6 +426,9 @@ def main(win):
     _linetick = 0
     _ctick = 0
     _gamestart = datetime.datetime.now()
+    _wctick = 0
+    ttick = 0
+    wc = False
     while run:
 
         # put steps e) - r) here
@@ -374,9 +449,6 @@ def main(win):
                 current_piece.y -= 1
                 change_piece = True
 
-        if holdpiece is not None:
-            holdpiece.x = current_piece.x
-            holdpiece.y = current_piece.y
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
@@ -419,6 +491,8 @@ def main(win):
                     _hp = holdpiece
                     holdpiece = current_piece
                     current_piece = _hp
+                elif event.key == pygame.K_DOWN:
+                    current_piece.y += 1
         ki = pygame.key.get_pressed()
 
         if ki[pygame.K_DOWN]:
@@ -430,6 +504,7 @@ def main(win):
         else:
             _linetick = 0
         # put steps t) - F) here
+
         shape_pos = convert_shape_format(current_piece)
         for i in range(len(shape_pos)):
             x,y = shape_pos[i]
@@ -437,6 +512,7 @@ def main(win):
                 grid[y][x] = current_piece.color
         if change_piece:
             bp += 1
+            wc = False
             for pos in shape_pos:
                 p = (pos[0],pos[1])
                 locked_positions[p] = current_piece.color
@@ -457,6 +533,7 @@ def main(win):
                 score += 50
             elif pscore == 4:
                 score += 100
+                ttick = 1
             lines_cleared += pscore
             lc += pscore
             if lines_cleared > (requirement - 1):
@@ -479,6 +556,21 @@ def main(win):
             level = 0
             lines_cleared = 0
             update_score(score)
+        empty = True
+        if not wc and bp > 0:
+            for row in grid[16:20]:
+                for line in row:
+                    for block in line:
+                        if block == 0:
+                            pass
+                        else:
+                            empty = False
+        else:
+            empty = False
+        if empty:
+            score += 200
+            wc = True
+            _wctick = 1
 
 
 def main_menu(win):
