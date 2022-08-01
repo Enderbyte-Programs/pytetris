@@ -122,6 +122,7 @@ T = [['.....',
 
 shapes = [S, Z, I, O, J, L, T]
 shape_colors = [(0, 255, 0), (255, 0, 0), (0, 255, 255), (255, 255, 0), (255, 165, 0), (0, 0, 255), (128, 0, 128)]
+shape_stats = [0,0,0,0,0,0,0]
 
 
 class Piece(object):
@@ -131,58 +132,60 @@ class Piece(object):
         self.shape = shape
         self.color = shape_colors[shapes.index(shape)]
         self.rotation = 0
+    def incstat(self):
+        shape_stats[shapes.index(self.shape)] += 1
 
-    class Button():
-        def __init__(self, color, x, y, width, height, text=''):
-            self.color = color
-            self.ogcol = color
-            self.x = x
-            self.y = y
-            self.width = width
-            self.height = height
-            self.text = text
-            self.juston = False
-            self.on = False
+class Button():
+    def __init__(self, color, x, y, width, height, text=''):
+        self.color = color
+        self.ogcol = color
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.juston = False
+        self.on = False
 
-        def draw(self, win, outline=None):
-            # Call this method to draw the button on the screen
-            if outline:
-                pygame.draw.rect(win, outline, (self.x - 2, self.y - 2, self.width + 4, self.height + 4), 0)
+    def draw(self, win, outline=None):
+        # Call this method to draw the button on the screen
+        if outline:
+            pygame.draw.rect(win, outline, (self.x - 2, self.y - 2, self.width + 4, self.height + 4), 0)
 
-            pygame.draw.rect(win, self.color, (self.x, self.y, self.width, self.height), 0)
+        pygame.draw.rect(win, self.color, (self.x, self.y, self.width, self.height), 0)
 
-            if self.text != '':
-                font = pygame.font.SysFont('Consolas', 24)
-                text = font.render(self.text, 1, (0, 0, 0))
-                win.blit(text, (
-                self.x + (self.width / 2 - text.get_width() / 2), self.y + (self.height / 2 - text.get_height() / 2)))
+        if self.text != '':
+            font = pygame.font.SysFont('Consolas', 24)
+            text = font.render(self.text, 1, (0, 0, 0))
+            win.blit(text, (
+            self.x + (self.width / 2 - text.get_width() / 2), self.y + (self.height / 2 - text.get_height() / 2)))
 
-        def isOver(self, pos):
+    def isOver(self, pos):
 
-            # Pos is the mouse position or a tuple of (x,y) coordinates
-            if pos[0] > self.x and pos[0] < self.x + self.width:
-                if pos[1] > self.y and pos[1] < self.y + self.height:
-                    pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_HAND))
-                    self.color = (128, 128, 128)
-                    self.on = True
-
-                else:
-                    self.color = self.ogcol
-                    self.on = False
+        # Pos is the mouse position or a tuple of (x,y) coordinates
+        if pos[0] > self.x and pos[0] < self.x + self.width:
+            if pos[1] > self.y and pos[1] < self.y + self.height:
+                pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_HAND))
+                self.color = (128, 128, 128)
+                self.on = True
 
             else:
                 self.color = self.ogcol
                 self.on = False
 
-            if not self.on and self.juston:
-                pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
-            self.juston = self.on
+        else:
+            self.color = self.ogcol
+            self.on = False
 
-            for event in pygame.event.get():
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    if pos[0] > self.x and pos[0] < self.x + self.width:
-                        if pos[1] > self.y and pos[1] < self.y + self.height:
-                            return True
+        if not self.on and self.juston:
+            pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
+        self.juston = self.on
+
+        for event in pygame.event.get():
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if pos[0] > self.x and pos[0] < self.x + self.width:
+                    if pos[1] > self.y and pos[1] < self.y + self.height:
+                        return True
 
 def create_grid(locked_positions={}):
     grid = [[(0,0,0) for _ in range(10)] for _ in range(20)]
@@ -334,7 +337,7 @@ def max_score():
 
     return score
 
-
+DEBUG = False
 def draw_window(surface, grid, score=0, last_score = 0):
     global _wctick
     global ttick
@@ -366,6 +369,10 @@ def draw_window(surface, grid, score=0, last_score = 0):
     draw_text(win,"Lines Left: " + str(requirement-lines_cleared),30,(255,255,255),0,100)
     draw_text(win, "Lines Cleared: " + str(lc),30,(255,255,255),0,150)
     draw_text(win,"Blocks Placed: "+str(bp),30,(255,255,255),0,200)
+
+    if DEBUG:
+        draw_text(win,str(shape_stats),30,(255,255,255),0,250)
+        draw_text(win,"FPS: "+str(round(clock.get_fps())),30,(255,255,255),0,300)
 
     for i in range(len(grid)):
         for j in range(len(grid[i])):
@@ -402,6 +409,9 @@ def main(win):
     global paused
     global _wctick
     global ttick
+    global DEBUG
+    global clock
+    global shape_stats
     holdpiece = None
     lc = 0
     bp = 0
@@ -410,7 +420,7 @@ def main(win):
     last_score = max_score()
     locked_positions = {}  # (x,y):(255,0,0)
     grid = create_grid(locked_positions)
-
+    shape_stats = [0,0,0,0,0,0,0]
     change_piece = False
     run = True
     current_piece = get_shape()
@@ -493,6 +503,10 @@ def main(win):
                     current_piece = _hp
                 elif event.key == pygame.K_DOWN:
                     current_piece.y += 1
+                elif event.key == pygame.K_F3 and not DEBUG:
+                    DEBUG = True
+                elif event.key == pygame.K_F3 and DEBUG:
+                    DEBUG = False
         ki = pygame.key.get_pressed()
 
         if ki[pygame.K_DOWN]:
@@ -516,7 +530,7 @@ def main(win):
             for pos in shape_pos:
                 p = (pos[0],pos[1])
                 locked_positions[p] = current_piece.color
-
+            current_piece.incstat()
             fall_speed = 0.5 - (level * 0.02)
             if fall_speed < 0:
                 fall_speed = 0
@@ -546,6 +560,7 @@ def main(win):
         draw_next_shape(next_piece,win)
         draw_hold(holdpiece,win)
         pygame.display.update()
+        clock.tick()
         #score += (10 * clear_rows(grid, locked_positions))
 
         if check_lost(locked_positions):
