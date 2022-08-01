@@ -3,12 +3,13 @@ import random
 import os
 import sys
 import datetime
+import requests
 #TODO PORT CUSTOMIZATIONS FROM OLD TETRIS
+import urllib.request
+
 pygame.font.init()
 pygame.mixer.init()
-music = pygame.mixer.music.load("tetris.mp3")
-pygame.mixer.music.play(-1)
-lsr = pygame.mixer.Sound("laser.wav")
+
 s_width = 1280
 s_height = 720
 play_width = 300  # meaning 300 // 10 = 30 width per block
@@ -596,6 +597,7 @@ def main_menu(win):
         win.blit(im,(s_width/2-(im.get_rect().width/2),0))
         draw_text_middle(win,"PyTetris",60,(255,255,255))
         draw_text(win,"Press Enter to begin",60,(255,255,255),0,500)
+        draw_text(win,"v0.4.2",30,(255,255,255),0,0)
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -611,6 +613,36 @@ def main_menu(win):
 win = pygame.display.set_mode((s_width, s_height),pygame.FULLSCREEN)
 pygame.display.set_caption('Tetris')
 pygame.mouse.set_visible(False)
+draw_text_middle(win,"Enderbyte Programs",60,(255,255,255))
+pygame.display.update()
+def checkinternet(website,timeout):
+
+    try:
+        # requesting URL
+        request = requests.get(website, timeout=timeout)
+        return True
+
+    # catching exception
+    except (requests.ConnectionError, requests.Timeout) as exception:
+        return False
+
+
+if not checkinternet("https://github.com",5) and (not os.path.isfile("logo.png") or not os.path.isfile("Tetris.mp3") or not os.path.isfile("laser.wav")):
+    win.fill((0,0,255))
+    draw_text_middle(win,"Failed to download missing assets. Tetris will quit in 5 seconds",30,(255,255,255))
+    pygame.display.update()
+    pygame.time.delay(5000)
+    sys.exit(-1)
+
+if not os.path.isfile("logo.png"):
+    urllib.request.urlretrieve("https://github.com/Enderbyte-Programs/pytetris/raw/main/logo.png","logo.png")
 
 pygame.display.set_icon(pygame.image.load("logo.png"))
+if not os.path.isfile("Tetris.mp3"):
+    urllib.request.urlretrieve("https://github.com/Enderbyte-Programs/pytetris/raw/main/Tetris.mp3","Tetris.mp3")
+if not os.path.isfile("laser.wav"):
+    urllib.request.urlretrieve("https://github.com/Enderbyte-Programs/pytetris/raw/main/laser.wav","laser.wav")
+music = pygame.mixer.music.load("tetris.mp3")
+pygame.mixer.music.play(-1)
+lsr = pygame.mixer.Sound("laser.wav")
 main_menu(win)  # start game
