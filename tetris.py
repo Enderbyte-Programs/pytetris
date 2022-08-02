@@ -224,13 +224,12 @@ def valid_space(shape, grid):
 
 
 def check_lost(positions):
+
     for pos in positions:
         x,y = pos
         if y < 1:
             return True
     return False
-
-
 
 def get_shape():
     global shapes, shape_colors
@@ -504,6 +503,8 @@ def main(win):
                     current_piece = _hp
                 elif event.key == pygame.K_DOWN:
                     current_piece.y += 1
+                    if not valid_space(current_piece,grid):
+                        current_piece.y -= 1
                 elif event.key == pygame.K_F3 and not DEBUG:
                     DEBUG = True
                 elif event.key == pygame.K_F3 and DEBUG:
@@ -524,7 +525,10 @@ def main(win):
         for i in range(len(shape_pos)):
             x,y = shape_pos[i]
             if y > -1:
-                grid[y][x] = current_piece.color
+                try:
+                    grid[y][x] = current_piece.color
+                except:
+                    pass
         if change_piece:
             bp += 1
             wc = False
@@ -597,7 +601,7 @@ def main_menu(win):
         win.blit(im,(s_width/2-(im.get_rect().width/2),0))
         draw_text_middle(win,"PyTetris",60,(255,255,255))
         draw_text(win,"Press Enter to begin",60,(255,255,255),0,500)
-        draw_text(win,"v0.4.2",30,(255,255,255),0,0)
+        draw_text(win,"v0.4.3",30,(255,255,255),0,0)
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
