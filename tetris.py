@@ -4,8 +4,8 @@ import os
 import sys
 import datetime
 import requests
-#TODO PORT CUSTOMIZATIONS FROM OLD TETRIS
 import urllib.request
+import json
 
 pygame.font.init()
 pygame.mixer.init()
@@ -18,6 +18,50 @@ block_size = 30
 
 top_left_x = (s_width - play_width) // 2
 top_left_y = s_height - play_height
+win = pygame.display.set_mode((s_width, s_height))
+pygame.display.set_caption('Tetris')
+pygame.mouse.set_visible(False)
+
+def draw_text_middle(surface, text, size, color):
+    font = pygame.font.SysFont("Consolas", size, bold=True)
+    label = font.render(text, 1, color)
+    surface.blit(label, (top_left_x + play_width /2 -
+                         (label.get_width()/2), top_left_y + play_height/2 - label.get_height()/2))
+draw_text_middle(win,"Enderbyte Programs",60,(255,255,255))
+pygame.display.update()
+
+CWD = os.getcwd()
+ASSETSDIR = CWD + "/t22assets"
+STRIPPED = False
+if not os.path.isdir(ASSETSDIR):
+    os.mkdir(ASSETSDIR)
+DATADIR = ASSETSDIR + "/data.json"
+defaultdata = {
+    "config" : {
+        "mute" : False,
+        "fullscreen" : False
+    },
+    "stats" : {
+        "highscore" : 0
+    }
+}
+DATA = defaultdata
+if not os.path.isfile(DATADIR):
+    with open(DATADIR,"w+") as f:
+        f.write(json.dumps(defaultdata))
+else:
+    with open(DATADIR) as f:
+        try:
+            DATA = json.load(f)
+        except:
+            f.write(defaultdata)
+
+if DATA["config"]["fullscreen"]:
+    win = pygame.display.set_mode((s_width, s_height),pygame.FULLSCREEN)
+if DATA["config"]["mute"]:
+    MUTE = True
+else:
+    MUTE = False
 
 S = [['.....',
       '......',
@@ -236,11 +280,6 @@ def get_shape():
     return Piece(5, 0, random.choice(shapes))
 
 
-def draw_text_middle(surface, text, size, color):
-    font = pygame.font.SysFont("Consolas", size, bold=True)
-    label = font.render(text, 1, color)
-    surface.blit(label, (top_left_x + play_width /2 -
-                         (label.get_width()/2), top_left_y + play_height/2 - label.get_height()/2))
 def draw_text(surface,text,size,color,x,y):
     font = pygame.font.SysFont("Colsolas",size)
     label = font.render(text,False,color)
@@ -271,7 +310,8 @@ def clear_rows(grid, locked):
                 except:
                     continue
     if inc > 0:
-        lsr.play()
+        if not MUTE:
+            lsr.play()
         for key in sorted(list(locked),key=lambda p: p[1])[::-1]:
             x,y = key
             if y < ind:
@@ -315,27 +355,18 @@ def draw_hold(shape, surface):
 
     surface.blit(label, (sx + 10, sy - 30))
 
+def writeappdata():
+    with open(DATADIR,"w+") as f:
+        f.write(json.dumps(DATA))
 
 def update_score(nscore):
-    score = max_score()
 
-    with open('scores.txt', 'w') as f:
-        if int(score) > nscore:
-            f.write(str(score))
-        else:
-            f.write(str(nscore))
-
+    if int(nscore) > DATA["stats"]["highscore"]:
+        DATA["stats"]["highscore"] = nscore
+        writeappdata()
 
 def max_score():
-    if not os.path.isfile("scores.txt"):
-        with open("scores.txt","w+") as f:
-            f.write("0")
-        return 0
-    with open('scores.txt', 'r') as f:
-        lines = f.readlines()
-        score = lines[0].strip()
-
-    return score
+    return DATA["stats"]["highscore"]
 
 DEBUG = False
 def draw_window(surface, grid, score=0, last_score = 0):
@@ -594,14 +625,16 @@ def main(win):
 
 
 def main_menu(win):
-    im = pygame.image.load("logo.png")
+    if not STRIPPED:
+        im = pygame.image.load(ASSETSDIR + "/logo.png")
     run = True
     while run:
         win.fill((0,0,0))
-        win.blit(im,(s_width/2-(im.get_rect().width/2),0))
-        draw_text_middle(win,"PyTetris",60,(255,255,255))
-        draw_text(win,"Press Enter to begin",60,(255,255,255),0,500)
-        draw_text(win,"v0.4.3",30,(255,255,255),0,0)
+        if not STRIPPED:
+            win.blit(im,(s_width/2-(im.get_rect().width/2),0))
+        draw_text_middle(win,"Tetris 22",60,(255,255,255))
+        draw_text(win,"Press Enter to play",60,(255,255,255),0,500)
+        draw_text(win,"v0.5",30,(255,255,255),0,0)
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -614,11 +647,7 @@ def main_menu(win):
     pygame.display.quit()
     sys.exit()
 
-win = pygame.display.set_mode((s_width, s_height),pygame.FULLSCREEN)
-pygame.display.set_caption('Tetris')
-pygame.mouse.set_visible(False)
-draw_text_middle(win,"Enderbyte Programs",60,(255,255,255))
-pygame.display.update()
+
 def checkinternet(website,timeout):
 
     try:
@@ -630,23 +659,30 @@ def checkinternet(website,timeout):
     except (requests.ConnectionError, requests.Timeout) as exception:
         return False
 
+if "-s" in sys.argv or "--stripped" in sys.argv:
+    STRIPPED = True
+else:
+    STRIPPED = False
 
-if not checkinternet("https://github.com",5) and (not os.path.isfile("logo.png") or not os.path.isfile("Tetris.mp3") or not os.path.isfile("laser.wav")):
-    win.fill((0,0,255))
-    draw_text_middle(win,"Failed to download missing assets. Tetris will quit in 5 seconds",30,(255,255,255))
-    pygame.display.update()
-    pygame.time.delay(5000)
-    sys.exit(-1)
+if not STRIPPED:
 
-if not os.path.isfile("logo.png"):
-    urllib.request.urlretrieve("https://github.com/Enderbyte-Programs/pytetris/raw/main/logo.png","logo.png")
+    if not checkinternet("https://github.com",5) and (not os.path.isfile(ASSETSDIR + "/logo.png") or not os.path.isfile(ASSETSDIR + "/tetris.mp3") or not os.path.isfile(ASSETDIR + "/laser.wav")):
+        win.fill((0,0,255))
+        draw_text_middle(win,"Failed to download missing assets. Tetris will quit in 5 seconds",30,(255,255,255))
+        pygame.display.update()
+        pygame.time.delay(5000)
+        sys.exit(-1)
 
-pygame.display.set_icon(pygame.image.load("logo.png"))
-if not os.path.isfile("Tetris.mp3"):
-    urllib.request.urlretrieve("https://github.com/Enderbyte-Programs/pytetris/raw/main/Tetris.mp3","Tetris.mp3")
-if not os.path.isfile("laser.wav"):
-    urllib.request.urlretrieve("https://github.com/Enderbyte-Programs/pytetris/raw/main/laser.wav","laser.wav")
-music = pygame.mixer.music.load("tetris.mp3")
-pygame.mixer.music.play(-1)
-lsr = pygame.mixer.Sound("laser.wav")
+    if not os.path.isfile(ASSETSDIR + "/logo.png"):
+        urllib.request.urlretrieve("https://github.com/Enderbyte-Programs/pytetris/raw/main/logo.png",ASSETSDIR + "/logo.png")
+
+    pygame.display.set_icon(pygame.image.load(ASSETSDIR + "/logo.png"))
+    if not os.path.isfile(ASSETSDIR + "/Tetris.mp3"):
+        urllib.request.urlretrieve("https://github.com/Enderbyte-Programs/pytetris/raw/main/Tetris.mp3",ASSETSDIR + "/tetris.mp3")
+    if not os.path.isfile(ASSETSDIR + "/laser.wav"):
+        urllib.request.urlretrieve("https://github.com/Enderbyte-Programs/pytetris/raw/main/laser.wav",ASSETSDIR + "/laser.wav")
+    music = pygame.mixer.music.load(ASSETSDIR + "/tetris.mp3")
+    if not MUTE:
+        pygame.mixer.music.play(-1)
+    lsr = pygame.mixer.Sound(ASSETSDIR + "/laser.wav")
 main_menu(win)  # start game
