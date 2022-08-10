@@ -6,6 +6,7 @@ import datetime
 import requests
 import urllib.request
 import json
+import logging
 
 pygame.font.init()
 pygame.mixer.init()
@@ -58,6 +59,9 @@ else:
 
 if DATA["config"]["fullscreen"]:
     win = pygame.display.set_mode((s_width, s_height),pygame.FULLSCREEN)
+    FULLSCREEN = True
+else:
+    FULLSCREEN = False
 if DATA["config"]["mute"]:
     MUTE = True
 else:
@@ -634,7 +638,8 @@ def main_menu(win):
             win.blit(im,(s_width/2-(im.get_rect().width/2),0))
         draw_text_middle(win,"Tetris 22",60,(255,255,255))
         draw_text(win,"Press Enter to play",60,(255,255,255),0,500)
-        draw_text(win,"v0.5",30,(255,255,255),0,0)
+        draw_text(win,"v0.5.1",30,(255,255,255),0,0)
+        draw_text(win,"Press O for settings",36,(255,255,255),0,600)
         pygame.display.update()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -644,9 +649,64 @@ def main_menu(win):
                     main(win)
                 elif event.key == pygame.K_ESCAPE:
                     sys.exit()
+                elif event.key == pygame.K_o:
+                    settingsm(win)
+
     pygame.display.quit()
     sys.exit()
 
+def settingsm(win):
+    global MUTE
+    global FULLSCREEN
+    run = True
+    while run:
+        win.fill((0,0,0))
+        draw_text_middle(win,"Configuration Menu",60,(255,255,255))
+        draw_text(win,"Press F to toggle fullscreen",36,(255,255,255),0,0)
+        draw_text(win,"Press M to toggle sounds",36,(255,255,255),0,50)
+        draw_text(win,"Press Escape to return to menu",36,(255,255,255),0,100)
+        draw_text(win,"Press R to delete highscore",36,(255,255,255),0,150)
+        pygame.display.update()
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    run = False
+                elif event.key == pygame.K_f and not FULLSCREEN:
+                    FULLSCREEN = True
+
+                    pygame.display.set_mode((1280,720),pygame.FULLSCREEN)
+                    pygame.time.delay(1000)
+                elif event.key == pygame.K_f and FULLSCREEN:
+                    FULLSCREEN = False
+
+                    pygame.display.set_mode((1280,720))
+                    pygame.time.delay(1000)
+                elif event.key == pygame.K_m and not MUTE:
+                    MUTE = True
+                    pygame.mixer.music.stop()
+                    pygame.time.delay(200)
+                elif event.key == pygame.K_m and MUTE:
+                    MUTE = False
+                    pygame.mixer.music.play(-1)
+                    pygame.time.delay(200)
+                elif event.key == pygame.K_r:
+                    x = confirm(win,"Are you sure that you want to delete the highscore")
+                    if x:
+                        DATA["stats"]["highscore"] = 0
+                        writeappdata()
+
+def confirm(win,msg):
+    run = True
+    while run:
+        win.fill((0,0,128))
+        draw_text_middle(win,msg + "? [Y/N]",36,(255,255,255))
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_y:
+                    return True
+                elif event.key == pygame.K_n:
+                    return False
+        pygame.display.update()
 
 def checkinternet(website,timeout):
 
@@ -666,7 +726,7 @@ else:
 
 if not STRIPPED:
 
-    if not checkinternet("https://github.com",5) and (not os.path.isfile(ASSETSDIR + "/logo.png") or not os.path.isfile(ASSETSDIR + "/tetris.mp3") or not os.path.isfile(ASSETDIR + "/laser.wav")):
+    if not checkinternet("https://github.com",5) and (not os.path.isfile(ASSETSDIR + "/logo.png") or not os.path.isfile(ASSETSDIR + "/tetris.mp3") or not os.path.isfile(ASSETSDIR + "/laser.wav")):
         win.fill((0,0,255))
         draw_text_middle(win,"Failed to download missing assets. Tetris will quit in 5 seconds",30,(255,255,255))
         pygame.display.update()
@@ -685,4 +745,5 @@ if not STRIPPED:
     if not MUTE:
         pygame.mixer.music.play(-1)
     lsr = pygame.mixer.Sound(ASSETSDIR + "/laser.wav")
+
 main_menu(win)  # start game
