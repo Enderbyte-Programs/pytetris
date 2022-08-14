@@ -21,7 +21,6 @@ top_left_x = (s_width - play_width) // 2
 top_left_y = s_height - play_height
 win = pygame.display.set_mode((s_width, s_height))
 pygame.display.set_caption('Tetris')
-pygame.mouse.set_visible(False)
 
 def draw_text_middle(surface, text, size, color):
     font = pygame.font.SysFont("Consolas", size, bold=True)
@@ -40,7 +39,8 @@ DATADIR = ASSETSDIR + "/data.json"
 defaultdata = {
     "config" : {
         "mute" : False,
-        "fullscreen" : False
+        "fullscreen" : False,
+        "grid" : True
     },
     "stats" : {
         "highscore" : 0,
@@ -66,12 +66,15 @@ else:
 if "config" in DATA:
     if not "mute" in DATA["config"]:
         DATA["config"]["mute"] = False
-    if not "fullscoreen" in DATA["config"]:
+    if not "fullscreen" in DATA["config"]:
         DATA["config"]["fullscreen"] = False
+    if not "grid" in DATA["config"]:
+        DATA["config"]["grid"] = True
 else:
     DATA["config"] = {
         "mute" : False,
-        "fullscreen" : False
+        "fullscreen" : False,
+        "grid" : True
     }
 if "stats" in DATA:
     e = ["highscore","linescleared","points","highestlevel","gamesplayed","wellclears","tetris"]
@@ -88,6 +91,60 @@ else:
         "wellclears" : 0,
         "tetris" : 0
     }
+
+
+class Button():
+    def __init__(self, color, x, y, width, height, text=''):
+        self.color = color
+        self.ogcol = color
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+        self.text = text
+        self.juston = False
+        self.on = False
+
+    def draw(self, win, outline=None):
+        # Call this method to draw the button on the screen
+        if outline:
+            pygame.draw.rect(win, outline, (self.x - 2, self.y - 2, self.width + 4, self.height + 4), 0)
+
+        pygame.draw.rect(win, self.color, (self.x, self.y, self.width, self.height), 0)
+
+        if self.text != '':
+            font = pygame.font.SysFont('Consolas', 24)
+            text = font.render(self.text, 1, (0, 0, 0))
+            win.blit(text, (
+            self.x + (self.width / 2 - text.get_width() / 2), self.y + (self.height / 2 - text.get_height() / 2)))
+
+    def isOver(self, ev):
+        pos = pygame.mouse.get_pos()
+
+        # Pos is the mouse position or a tuple of (x,y) coordinates
+        if pos[0] > self.x and pos[0] < self.x + self.width:
+            if pos[1] > self.y and pos[1] < self.y + self.height:
+                pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_HAND))
+                self.color = (128, 128, 128)
+                self.on = True
+
+            else:
+                self.color = self.ogcol
+                self.on = False
+
+        else:
+            self.color = self.ogcol
+            self.on = False
+
+        if not self.on and self.juston:
+            pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
+        self.juston = self.on
+
+        for event in ev:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if pos[0] > self.x and pos[0] < self.x + self.width:
+                    if pos[1] > self.y and pos[1] < self.y + self.height:
+                        return True
 
 if DATA["config"]["fullscreen"]:
     win = pygame.display.set_mode((s_width, s_height),pygame.FULLSCREEN)
@@ -395,8 +452,8 @@ def draw_window(surface, grid, score=0, last_score = 0):
             pygame.draw.rect(surface, grid[i][j], (top_left_x + j*block_size, top_left_y + i*block_size, block_size, block_size), 0)
 
     pygame.draw.rect(surface, (255, 0, 0), (top_left_x, top_left_y, play_width, play_height), 5)
-
-    draw_grid(surface, grid)
+    if DATA["config"]["grid"]:
+        draw_grid(surface, grid)
     if paused:
         draw_text_middle(win, "You are Paused", 60, (255, 255, 255))
     if _wctick > 0:
@@ -413,7 +470,8 @@ def draw_window(surface, grid, score=0, last_score = 0):
             draw_text_middle(win,"TETRIS",60,(255,255,255))
     #pygame.display.update()
 level = 1
-def main(win):
+def main(win,slevel = 1):
+    pygame.mouse.set_visible(False)
     global grid
     global level
     global requirement
@@ -429,6 +487,7 @@ def main(win):
     global clock
     global shape_stats
     global DATA
+    level = slevel
     DATA["stats"]["gamesplayed"] += 1
     holdpiece = None
     lc = 0
@@ -506,6 +565,7 @@ def main(win):
                     run = False
                     update_score(score)
                     writeappdata()
+                    pygame.mouse.set_visible(True)
                 elif event.key == pygame.K_ESCAPE and not paused:
                     paused = True
                     ofs = fall_speed
@@ -603,6 +663,7 @@ def main(win):
             level = 0
             lines_cleared = 0
             update_score(score)
+            pygame.mouse.set_visible(True)
         empty = True
         if not wc and bp > 0:
             for row in grid[16:20]:
@@ -619,34 +680,51 @@ def main(win):
             wc = True
             DATA["stats"]["wellclears"] += 1
             _wctick = 1
-
+    main_menu(win)
 
 def main_menu(win):
+    pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
     if not STRIPPED:
-        im = pygame.image.load(ASSETSDIR + "/logo.png")
+        im = pygame.image.load(ASSETSDIR + "/background.jpg")
     run = True
+    b = Button((0,255,0),s_width/2 - 50,100,200,100,"Play")
+    b2 = Button ((255,0,0),s_width/2 - 50,600,200,100,"Quit")
+    b3 = Button((0,128,128),s_width/2 - 50,300,200,100,"Options")
+    b4 = Button((0,128,128),s_width/2 - 50,450,200,100,"Statistics")
     while run:
         win.fill((0,0,0))
         if not STRIPPED:
-            win.blit(im,(s_width/2-(im.get_rect().width/2),0))
-        draw_text_middle(win,"Tetris 22",60,(255,255,255))
-        draw_text(win,"Press Enter to play",60,(255,255,255),0,500)
-        draw_text(win,"v0.6",30,(255,255,255),0,0)
-        draw_text(win,"Press O for settings",36,(255,255,255),0,600)
-        draw_text(win, "Press S for Stats", 36, (255, 255, 255), 0, 650)
+            win.blit(im,(s_width/2-(im.get_rect().width/2),30))
+        draw_text(win,"Tetris 22",60,(255,255,255),(s_width/2 - 50),0)
+
+        draw_text(win,"v0.7",30,(255,255,255),0,0)
+        b.draw(win)
+        b2.draw(win)
+        b3.draw(win)
+        b4.draw(win)
+
         pygame.display.update()
-        for event in pygame.event.get():
+        ev = pygame.event.get()
+        for event in ev:
             if event.type == pygame.QUIT:
                 run = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
-                    main(win)
+                    playmen(win)
                 elif event.key == pygame.K_ESCAPE:
-                    sys.exit()
+                    run = False
                 elif event.key == pygame.K_o:
                     settingsm(win)
                 elif event.key == pygame.K_s:
                     vmem(win)
+        if b.isOver(ev):
+            playmen(win)
+        elif b2.isOver(ev):
+            run = False
+        elif b3.isOver(ev):
+            settingsm(win)
+        elif b4.isOver(ev):
+            vmem(win)
 
     pygame.display.quit()
     pygame.quit()
@@ -654,18 +732,26 @@ def main_menu(win):
     sys.exit()
 
 def settingsm(win):
+    pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
     global MUTE
     global FULLSCREEN
     run = True
+    b = Button((0, 128, 128), 50, 0, 300, 100, "Toggle Fullscreen")
+    b1 = Button((0, 128, 128), 50, 150, 300, 100, "Toggle Sounds")
+    b2 = Button((0, 128, 128), 50, 600, 300, 100, "Back to Menu")
+    b3 = Button((0, 128, 128), 50, 300, 300, 100, "Delete Highscore")
+    b4 = Button((0, 128, 128), 50, 450, 300, 100, "Toggle Grid (" + str(DATA["config"]["grid"]) + ")")
     while run:
         win.fill((0,0,0))
         draw_text_middle(win,"Configuration Menu",60,(255,255,255))
-        draw_text(win,"Press F to toggle fullscreen",36,(255,255,255),0,0)
-        draw_text(win,"Press M to toggle sounds",36,(255,255,255),0,50)
-        draw_text(win,"Press Escape to return to menu",36,(255,255,255),0,100)
-        draw_text(win,"Press R to delete highscore",36,(255,255,255),0,150)
+        b.draw(win)
+        b1.draw(win)
+        b2.draw(win)
+        b3.draw(win)
+        b4.draw(win)
         pygame.display.update()
-        for event in pygame.event.get():
+        ev = pygame.event.get()
+        for event in ev:
             if event.type == pygame.QUIT:
                 writeappdata()
                 pygame.mixer.music.stop()
@@ -677,20 +763,22 @@ def settingsm(win):
                     run = False
                 elif event.key == pygame.K_f and not FULLSCREEN:
                     FULLSCREEN = True
-
+                    DATA["config"]["fullscreen"] = True
                     pygame.display.set_mode((1280,720),pygame.FULLSCREEN)
                     pygame.time.delay(1000)
                 elif event.key == pygame.K_f and FULLSCREEN:
                     FULLSCREEN = False
-
+                    DATA["config"]["fullscreen"] = False
                     pygame.display.set_mode((1280,720))
                     pygame.time.delay(1000)
                 elif event.key == pygame.K_m and not MUTE:
                     MUTE = True
+                    DATA["config"]["mute"] = True
                     pygame.mixer.music.stop()
                     pygame.time.delay(200)
                 elif event.key == pygame.K_m and MUTE:
                     MUTE = False
+                    DATA["config"]["mute"] = False
                     pygame.mixer.music.play(-1)
                     pygame.time.delay(200)
                 elif event.key == pygame.K_r:
@@ -698,19 +786,58 @@ def settingsm(win):
                     if x:
                         DATA["stats"]["highscore"] = 0
                         writeappdata()
+        if b.isOver(ev) and not FULLSCREEN:
+            FULLSCREEN = True
+            DATA["config"]["fullscreen"] = True
+            pygame.display.set_mode((1280, 720), pygame.FULLSCREEN)
+            pygame.time.delay(1000)
+        elif b.isOver(ev) and FULLSCREEN:
+            FULLSCREEN = False
+            DATA["config"]["fullscreen"] = False
+            pygame.display.set_mode((1280, 720))
+            pygame.time.delay(1000)
+        elif b1.isOver(ev) and not MUTE:
+            MUTE = True
+            DATA["config"]["mute"] = True
+            pygame.mixer.music.stop()
+            pygame.time.delay(200)
+        elif b1.isOver(ev) and MUTE:
+            MUTE = False
+            DATA["config"]["mute"] = False
+            pygame.mixer.music.play(-1)
+            pygame.time.delay(200)
+        elif b2.isOver(ev):
+            run = False
+        elif b3.isOver(ev):
+            x = confirm(win, "Are you sure that you want to delete the highscore")
+            if x:
+                DATA["stats"]["highscore"] = 0
+                writeappdata()
+        elif b4.isOver(ev) and not DATA["config"]["grid"]:
+            DATA["config"]["grid"] = True
+            b4 = Button((0, 128, 128), 50, 450, 300, 100, "Toggle Grid (" + str(DATA["config"]["grid"]) + ")")
+        elif b4.isOver(ev) and DATA["config"]["grid"]:
+            DATA["config"]["grid"] = False
+            b4 = Button((0, 128, 128), 50, 450, 300, 100, "Toggle Grid (" + str(DATA["config"]["grid"]) + ")")
+    writeappdata()
 
 def vmem(win):
+    pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
     global DATA
     run = True
+    b = Button((255,0,0),50,500,200,75,"Reset")
+    b1 = Button((0,128,128),50,650,200,75,"Back")
     while run:
         win.fill((0,0,0))
         inc = -1
         for k in DATA["stats"]:
             inc += 1
             draw_text(win,k + " : " + str(DATA["stats"][k]),36,(255,255,255),0,inc*50)
-        draw_text(win,"Press R to reset statistics",36,(255,255,255),0,(inc*50)+50)
+        b.draw(win)
+        b1.draw(win)
         pygame.display.update()
-        for event in pygame.event.get():
+        ev = pygame.event.get()
+        for event in ev:
             if event.type == pygame.QUIT:
                 writeappdata()
                 pygame.mixer.music.stop()
@@ -725,8 +852,80 @@ def vmem(win):
                         for k in DATA["stats"]:
                             DATA["stats"][k] = 0
                         writeappdata()
+        if b.isOver(ev):
+            if confirm(win, "Are you sure you want to reset stats?"):
+                for k in DATA["stats"]:
+                    DATA["stats"][k] = 0
+                writeappdata()
+        elif b1.isOver(ev):
+            run = False
+
+def playmen(win):
+    pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
+    run = True
+    b = Button((0,255,0),50,600,200,50,"New Game")
+    b1 = Button((0,128,128),300,600,200,50,"Back")
+    while run:
+        win.fill((0,0,0))
+        ev = pygame.event.get()
+        for event in ev:
+            if event.type == pygame.QUIT:
+                writeappdata()
+                pygame.mixer.music.stop()
+                pygame.display.quit()
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    run = False
+        b.draw(win)
+        b1.draw(win)
+        pygame.display.update()
+        if b.isOver(ev):
+            newgamemen(win)
+        elif b1.isOver(ev):
+            run = False
+
+def newgamemen(win):
+    pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
+    run = True
+    b = Button((0,255,0),50,0,200,100,"Easy")
+    b1 = Button((255,255,0),50,150,200,100,"Moderate")
+    b2 = Button((255,128,0),50,300,200,100,"Difficult")
+    b3 = Button((255,0,0),50,450,200,100,"Ridiculous")
+    b4 = Button((0,128,128),50,600,200,100,"Back")
+    while run:
+        win.fill((0, 0, 0))
+        ev = pygame.event.get()
+        for event in ev:
+            if event.type == pygame.QUIT:
+                writeappdata()
+                pygame.mixer.music.stop()
+                pygame.display.quit()
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    run = False
+        b1.draw(win)
+        b2.draw(win)
+        b.draw(win)
+        b3.draw(win)
+        b4.draw(win)
+        pygame.display.update()
+        if b4.isOver(ev):
+            run = False
+        elif b.isOver(ev):
+            main(win)
+        elif b1.isOver(ev):
+            main(win,8)
+        elif b2.isOver(ev):
+            main(win,15)
+        elif b3.isOver(ev):
+            main(win,25)
 
 def confirm(win,msg):
+    pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
     run = True
     while run:
         win.fill((0,0,128))
@@ -763,7 +962,7 @@ else:
 
 if not STRIPPED:
 
-    if not checkinternet("https://github.com",5) and (not os.path.isfile(ASSETSDIR + "/logo.png") or not os.path.isfile(ASSETSDIR + "/tetris.mp3") or not os.path.isfile(ASSETSDIR + "/laser.wav")):
+    if not checkinternet("https://github.com",5) and (not os.path.isfile(ASSETSDIR + "/logo.png") or not os.path.isfile(ASSETSDIR + "/tetris.mp3") or not os.path.isfile(ASSETSDIR + "/laser.wav") or not os.path.isfile(ASSETSDIR + "/background.jpg")):
         win.fill((0,0,255))
         draw_text_middle(win,"Failed to download missing assets. Tetris will quit in 5 seconds",30,(255,255,255))
         pygame.display.update()
@@ -779,6 +978,8 @@ if not STRIPPED:
     if not os.path.isfile(ASSETSDIR + "/laser.wav"):
         urllib.request.urlretrieve("https://github.com/Enderbyte-Programs/pytetris/raw/main/laser.wav",ASSETSDIR + "/laser.wav")
     music = pygame.mixer.music.load(ASSETSDIR + "/tetris.mp3")
+    if not os.path.isfile(ASSETSDIR + "/background.jpg"):
+        urllib.request.urlretrieve("https://github.com/Enderbyte-Programs/pytetris/raw/main/background.jpg",ASSETSDIR + "/background.jpg")
     if not MUTE:
         pygame.mixer.music.play(-1)
     lsr = pygame.mixer.Sound(ASSETSDIR + "/laser.wav")

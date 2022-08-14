@@ -9,7 +9,7 @@ Enderbyte Programs LLC promises that this program is not malware, spyware, bloat
 Enderbyte Programs LLC promises that this program does not collect or send any user information, both personalized and anonymouse.
 
 Section 2: What you are installing:
-Tetris 22 Executable (tetris.exe): 28 MB
+Tetris 22 Executable (tetris.exe): 15 MB
 Setup data: About 5 MB
 Assets: 600 KB
 
