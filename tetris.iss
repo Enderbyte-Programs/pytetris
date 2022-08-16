@@ -1,5 +1,5 @@
 #define MyAppName "Tetris 22"
-#define MyAppVersion "0.7"
+#define MyAppVersion "1.0"
 #define MyAppPublisher "Enderbyte Programs LLC"
 #define MyAppURL "https://sites.google.com/view/enderbyteprograms"
 #define MyAppExeName "tetris.exe"
@@ -20,7 +20,7 @@ LicenseFile=C:\Python310\Scripts\tetris-22\license.txt
 ; Remove the following line to run in administrative install mode (install for all users.)
 PrivilegesRequired=lowest
 OutputDir=C:\Python310\Scripts\tetris-22
-OutputBaseFilename=Tetris22-0.7-installer
+OutputBaseFilename=Tetris22-1.0-installer
 SetupIconFile=C:\Python310\Scripts\tetris-22\logo.ico
 Compression=lzma
 SolidCompression=yes
