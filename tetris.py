@@ -7,6 +7,7 @@ import requests
 import urllib.request
 import json
 import logging
+import ast
 
 pygame.font.init()
 pygame.mixer.init()
@@ -50,7 +51,12 @@ defaultdata = {
         "gamesplayed" : 0,
         "wellclears" : 0,
         "tetris" : 0
-    }
+    },
+    "saves" : [
+        {
+            "empty" : True
+        }
+     for i in range(5)]
 }
 DATA = defaultdata
 if not os.path.isfile(DATADIR):
@@ -91,7 +97,8 @@ else:
         "wellclears" : 0,
         "tetris" : 0
     }
-
+if not "saves" in DATA:
+    DATA["saves"] = [{"empty":True} for i in range(5)]
 
 class Button():
     def __init__(self, color, x, y, width, height, text=''):
@@ -284,6 +291,81 @@ def create_grid(locked_positions={}):
                 grid[i][j] = c
     return grid
 
+def parsedate(dat):
+    return {
+        "year" : dat.year,
+        "month" : dat.month,
+        "day" : dat.day,
+        "hour" : dat.hour,
+        "minute" : dat.minute,
+        "second" : dat.second
+    }
+def loaddate(dat):
+    return datetime.datetime(
+        dat["year"],
+        dat["month"],
+        dat["day"],
+        dat["hour"],
+        dat["minute"],
+        dat["second"]
+    )
+def parsepiece(dat):
+    return {
+        "x" : dat.x,
+        "y" : dat.y,
+        "shape" : dat.shape,
+        "rotation" : dat.rotation
+    }
+def loadpiece(dat):
+    result = Piece(dat["x"],dat["y"],dat["shape"])
+    result.rotation = dat["rotation"]
+    return result
+
+class GameSave:
+    def __init__(self,rawdata):
+        try:
+            if rawdata["empty"]:
+                self.empty = True
+            else:
+                self.empty = False
+            if not self.empty:
+                self.score = rawdata["score"]
+                self.level = rawdata["level"]
+                self.curpiece = loadpiece(rawdata["pieces"]["cp"])
+                self.nextpiece = loadpiece(rawdata["pieces"]["np"])
+                if rawdata["pieces"]["hp"] is not None:
+                    self.holdpiece = loadpiece(rawdata["pieces"]["hp"])
+                else:
+                    self.holdpiece = None
+                self.lp = ast.literal_eval(rawdata["board"])
+                self.bp = rawdata["blockplaced"]
+                self.time = loaddate(rawdata["time"])
+                self.gtime = loaddate(rawdata["gtime"])
+                self.lc = rawdata["linescleared"]
+                self.lclevel = rawdata["lc_level"]
+                self.selected = False
+        except:
+            self.empty = True
+    def play(self,saveaddress):
+        main(win,self.level,self.lclevel,self.lc,self.lp,self.curpiece,self.nextpiece,self.holdpiece,self.bp,self.score,saveaddress)
+    def display(self,win,x,y,ev):
+
+        for event in ev:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if pygame.mouse.get_pos()[0] > x and pygame.mouse.get_pos()[1] > y and pygame.mouse.get_pos()[1] < y + 100:
+                    self.selected = True
+                else:
+                    self.selected = False
+
+        if not self.empty:
+            draw_text(win,str(self.time),28,(255,255,255),0+x,0+y)
+            draw_text(win,"Level: "+str(self.level),28,(255,255,255),200+x,0+y)
+            draw_text(win,"Score: "+str(self.score),28,(255,255,255),0+x,30+y)
+            if self.selected:
+                pygame.draw.rect(win,(0,128,0),(500+x,20+y,25,25))
+        else:
+            draw_text(win,"Empty save",28,(255,255,255),0+x,0+y)
+#TODO Finish gamesave class
 
 def convert_shape_format(shape):
     positions = []
@@ -470,7 +552,7 @@ def draw_window(surface, grid, score=0, last_score = 0):
             draw_text_middle(win,"TETRIS",60,(255,255,255))
     #pygame.display.update()
 level = 1
-def main(win,slevel = 1):
+def main(win,slevel = 1,lc_level = 0, linesclear = 0, lockedpos = {},cp=None,np=None,hp=None,blockplace=0,sscore=0,saveaddress=-1):
     pygame.mouse.set_visible(False)
     global grid
     global level
@@ -489,27 +571,33 @@ def main(win,slevel = 1):
     global DATA
     level = slevel
     DATA["stats"]["gamesplayed"] += 1
-    holdpiece = None
-    lc = 0
-    bp = 0
+    holdpiece = hp
+    lc = linesclear
+    bp = blockplace
     paused = False
     # put a) here
     last_score = max_score()
-    locked_positions = {}  # (x,y):(255,0,0)
+    locked_positions = lockedpos
     grid = create_grid(locked_positions)
     shape_stats = [0,0,0,0,0,0,0]
     change_piece = False
     run = True
-    current_piece = get_shape()
-    next_piece = get_shape()
+    if cp is None:
+        current_piece = get_shape()
+    else:
+        current_piece = cp
+    if np is None:
+        next_piece = get_shape()
+    else:
+        next_piece = np
     clock = pygame.time.Clock()
     fall_time = 0
     # put steps b), c), and d) here
     fall_speed = 0.5 - (level * 0.02)
     level_time = 0
-    score = 0
+    score = sscore
     requirement = 4 + ((level - 1) * 4)
-    lines_cleared = 0
+    lines_cleared = lc_level
     _linetick = 0
     _ctick = 0
     _gamestart = datetime.datetime.now()
@@ -562,10 +650,83 @@ def main(win,slevel = 1):
                     if not valid_space(current_piece, grid):
                         current_piece.rotation = current_piece.rotation - 1 % len(current_piece.shape)
                 elif event.key == pygame.K_q:
-                    run = False
-                    update_score(score)
-                    writeappdata()
-                    pygame.mouse.set_visible(True)
+                    if saveaddress < 0:
+                        kq = confirm(win,"Are you sure you want to quit without saving?")
+                        if kq:
+                            run = False
+                            pygame.mouse.set_visible(True)
+                    if saveaddress > -1:
+                        run = False
+                        update_score(score)
+                        writeappdata()
+                        pygame.mouse.set_visible(True)
+                        DATA["saves"][saveaddress] = {
+                            "empty": False,
+                            "score": score,
+                            "level": level,
+                            "board": str(locked_positions),
+                            "lc_level": lines_cleared,
+                            "linescleared": lc,
+                            "blockplaced": bp,
+                            "time": parsedate(datetime.datetime.now()),
+                            "gtime": parsedate(
+                                datetime.datetime(2022, 1, 1, _parsedtime // 3600, (_parsedtime % 3600) // 60,
+                                                  (_parsedtime % 3600) % 60)),
+                            "pieces": {
+                                "cp": parsepiece(current_piece),
+                                "np": parsepiece(next_piece),
+                                "hp": None
+                            }
+                        }
+                        if holdpiece is not None:
+                            DATA["saves"][saveaddress]["pieces"]["hp"] = parsepiece(holdpiece)
+                elif event.key == pygame.K_s:
+                    if saveaddress < 0:
+                        _i = -1
+                        for save in DATA["saves"]:
+                            _i += 1
+                            if save["empty"]:
+                                break
+                        DATA["saves"][_i] = {
+                            "empty" : False,
+                            "score" : score,
+                            "level" : level,
+                            "board" : str(locked_positions),
+                            "lc_level" : lines_cleared,
+                            "linescleared" : lc,
+                            "blockplaced" : bp,
+                            "time" : parsedate(datetime.datetime.now()),
+                            "gtime" : parsedate(datetime.datetime(2022,1,1,_parsedtime // 3600,(_parsedtime % 3600) // 60, (_parsedtime % 3600) % 60)),
+                            "pieces" : {
+                                "cp" : parsepiece(current_piece),
+                                "np" : parsepiece(next_piece),
+                                "hp" : None
+                            }
+                        }
+                        if holdpiece is not None:
+                            DATA["saves"][_i]["pieces"]["hp"] = parsepiece(holdpiece)
+                        saveaddress = _i
+                    else:
+                        DATA["saves"][saveaddress] = {
+                            "empty": False,
+                            "score": score,
+                            "level": level,
+                            "board": str(locked_positions),
+                            "lc_level": lines_cleared,
+                            "linescleared": lc,
+                            "blockplaced": bp,
+                            "time": parsedate(datetime.datetime.now()),
+                            "gtime": parsedate(
+                                datetime.datetime(2022, 1, 1, _parsedtime // 3600, (_parsedtime % 3600) // 60,
+                                                  (_parsedtime % 3600) % 60)),
+                            "pieces": {
+                                "cp": parsepiece(current_piece),
+                                "np": parsepiece(next_piece),
+                                "hp": None
+                            }
+                        }
+                        if holdpiece is not None:
+                            DATA["saves"][saveaddress]["pieces"]["hp"] = parsepiece(holdpiece)
                 elif event.key == pygame.K_ESCAPE and not paused:
                     paused = True
                     ofs = fall_speed
@@ -697,7 +858,7 @@ def main_menu(win):
             win.blit(im,(s_width/2-(im.get_rect().width/2),30))
         draw_text(win,"Tetris 22",60,(255,255,255),(s_width/2 - 50),0)
 
-        draw_text(win,"v0.7",30,(255,255,255),0,0)
+        draw_text(win,"1.0 (Yay!)",30,(255,255,255),0,0)
         b.draw(win)
         b2.draw(win)
         b3.draw(win)
@@ -862,9 +1023,12 @@ def vmem(win):
 
 def playmen(win):
     pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
+    saves = [GameSave(x) for x in DATA["saves"]]
     run = True
     b = Button((0,255,0),50,600,200,50,"New Game")
     b1 = Button((0,128,128),300,600,200,50,"Back")
+    b2 = Button((0,128,0),550,600,200,50,"Play Selected")
+    b3 = Button((255,0,0),800,600,200,50,"Delete")
     while run:
         win.fill((0,0,0))
         ev = pygame.event.get()
@@ -878,13 +1042,46 @@ def playmen(win):
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     run = False
+        inc = -1
+
         b.draw(win)
         b1.draw(win)
-        pygame.display.update()
+        b2.draw(win)
+        b3.draw(win)
+
         if b.isOver(ev):
-            newgamemen(win)
+            hasemoty = 0
+            for save in saves:
+                if not save.empty:
+                    hasemoty += 1
+            p = False
+            if hasemoty == len(saves):
+                p = confirm(win,"No empty saves. New game?")
+            if p or hasemoty < len(saves):
+                newgamemen(win)
         elif b1.isOver(ev):
             run = False
+        elif b2.isOver(ev):
+            try:
+                ince = -1
+                for save in saves:
+                    ince += 1
+                    if save.selected:
+                        save.play(ince)
+            except:
+                pass
+        elif b3.isOver(ev):
+            incd = -1
+            for save in saves:
+                incd += 1
+                if save.selected:
+                    del DATA["saves"][incd]
+                    DATA["saves"].insert(incd,{"empty":True})
+                    saves[incd].empty = True
+        for save in saves:
+            inc += 1
+            save.display(win,0,inc*100,ev)
+        pygame.display.update()
 
 def newgamemen(win):
     pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
@@ -916,13 +1113,13 @@ def newgamemen(win):
         if b4.isOver(ev):
             run = False
         elif b.isOver(ev):
-            main(win)
+            main(win,lockedpos={})
         elif b1.isOver(ev):
-            main(win,8)
+            main(win,8,lockedpos={})
         elif b2.isOver(ev):
-            main(win,15)
+            main(win,15,lockedpos={})
         elif b3.isOver(ev):
-            main(win,25)
+            main(win,25,lockedpos={})
 
 def confirm(win,msg):
     pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
@@ -942,6 +1139,24 @@ def confirm(win,msg):
                     return True
                 elif event.key == pygame.K_n:
                     return False
+        pygame.display.update()
+
+def display_message(win,msg):
+    pygame.mouse.set_cursor(pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW))
+    run = True
+    while run:
+        win.fill((0,128,0))
+        draw_text_middle(win,msg,36,(255,255,255))
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                writeappdata()
+                pygame.mixer.music.stop()
+                pygame.display.quit()
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    return
         pygame.display.update()
 
 def checkinternet(website,timeout):
